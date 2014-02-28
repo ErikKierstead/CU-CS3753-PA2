@@ -32,7 +32,7 @@
 //Global Variables:
 queue q;
 pthread_mutex_t writeQueue;
-pthread_mutex_t  readQueue;
+pthread_mutex_t outputQueue;
 pthread_mutex_t  decrement;
 
 int openRequesters = 0;
@@ -144,16 +144,16 @@ void* WriteFile(void* fileName){
     //printf("after error and IP initialization\n");
 
     //Open Output File
-    outputfp = fopen(fileName, "w");
+    //outputfp = fopen(fileName, "w");
 
     //printf("after open\n");
 
-    if(!outputfp){
-        sprintf(errorstr, "Error Opening Output File: %s", (char*)fileName);
-        perror(errorstr);
-        printf("Error Opening Output File: %s", (char*)fileName);
+   // if(!outputfp){
+   //     sprintf(errorstr, "Error Opening Output File: %s", (char*)fileName);
+   //     perror(errorstr);
+   //     printf("Error Opening Output File: %s", (char*)fileName);
         //break;
-    }
+    //}
 
     while(openRequesters > 0)
     {
@@ -177,15 +177,50 @@ void* WriteFile(void* fileName){
 
              //pthread_mutex_lock(&writeQueue);
              hostPointer = queue_pop(&q);
-		printf("recvd %s\n", hostPointer);
+		//printf("recvd %s\n", hostPointer);
              sprintf(hostname, "%s", (char*) hostPointer);
 
-             printf("que_pop: %s\n", hostname);
+            // printf("que_pop: %s\n", hostname);
 
              //queue_push(&q, hostname);
-             pthread_mutex_unlock(&writeQueue);
+            // pthread_mutex_unlock(&writeQueue);
         
-             printf("Exited Loop - openRequesters:%d\n", openRequesters);
+  
+             pthread_mutex_lock(&outputQueue);
+             
+             if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
+                 == UTIL_FAILURE){
+                     fprintf(stderr, "dnslookup error: %s\n", hostname);
+                     strncpy(firstipstr, "", sizeof(firstipstr));
+                     }
+
+             printf("que_pop: %s IP: %s\n", hostname, firstipstr);
+
+             
+             char* ipPointer = malloc(sizeof(firstipstr));
+             strcpy(ipPointer, firstipstr);
+
+             /* Open Output File */
+             outputfp = fopen(fileName, "a+");
+    
+             if(!outputfp){
+                 perror("Error Opening Output File");
+                 return EXIT_FAILURE;
+             }
+
+             fprintf(outputfp, "%s,%s\n", hostname, (char*)ipPointer);
+
+             fclose(outputfp);
+
+             pthread_mutex_unlock(&writeQueue);
+             pthread_mutex_unlock(&outputQueue);
+
+         
+
+             //-------------------------------------------------------
+             
+
+            // printf("Exited Loop - openRequesters:%d\n", openRequesters);
         }
 
              //pthread_mutex_unlock(&writeQueue);
@@ -246,7 +281,7 @@ void* WriteFile(void* fileName){
     // Close Input File
     printf("Closing Output File\n");
 
-    fclose(outputfp);
+    //fclose(outputfp);
    
      return NULL;
 }
@@ -286,7 +321,7 @@ int main(int argc, char* argv[]){
 
     //Initialize Mutex Variables:
     pthread_mutex_init(&writeQueue, NULL);
-    pthread_mutex_init(&readQueue, NULL);
+    pthread_mutex_init(&outputQueue, NULL);
     pthread_mutex_init(&decrement, NULL);
     
     //long num_threads = NUM_THREADS;
@@ -346,40 +381,40 @@ int main(int argc, char* argv[]){
     //--------------------------------------------------
 
     /* Open Output File */
-    outputfp = fopen(argv[(argc-1)], "w");
-    if(!outputfp){
-	perror("Error Opening Output File");
-	return EXIT_FAILURE;
-    }
+    //outputfp = fopen(argv[(argc-1)], "w");
+    //if(!outputfp){
+//	perror("Error Opening Output File");
+//	return EXIT_FAILURE;
+ //   }
 
     // Loop Through Input Files
-    for(i=1; i<(argc-1); i++){
+   // for(i=1; i<(argc-1); i++){
 	
 	// Open Input File 
-	inputfp = fopen(argv[i], "r");
-	if(!inputfp){
+//	inputfp = fopen(argv[i], "r");
+//	if(!inputfp){
 	    //sprintf(errorstr, "Error Opening Input File: %s", argv[i]);
-	    perror(errorstr);
-	    break;
-	}	
+//	    perror(errorstr);
+//	    break;
+//	}	
 
 	// Read File and Process
-	while(fscanf(inputfp, INPUTFS, hostname) > 0){
+//	while(fscanf(inputfp, INPUTFS, hostname) > 0){
 	
 	    // Lookup hostname and get IP string
-	    if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
-	       == UTIL_FAILURE){
-		fprintf(stderr, "dnslookup error: %s\n", hostname);
-		strncpy(firstipstr, "", sizeof(firstipstr));
-	    }
+//	    if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
+//	       == UTIL_FAILURE){
+//		fprintf(stderr, "dnslookup error: %s\n", hostname);
+//		strncpy(firstipstr, "", sizeof(firstipstr));
+//	    }
 	
 	    // Write to Output File
 	    //fprintf(outputfp, "%s,%s\n", hostname, firstipstr);
-	}
+//	}
 
 	//Close Input File
-	fclose(inputfp);
-    }
+//	fclose(inputfp);
+  //  }
 
     // Close Output File
     //fclose(outputfp);
