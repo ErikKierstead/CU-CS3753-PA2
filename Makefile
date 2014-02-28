@@ -4,9 +4,12 @@ LFLAGS = -Wall -Wextra -pthread
 
 .PHONY: all clean
 
-all: lookup queueTest pthread-hello
+all: lookup multi-lookup queueTest pthread-hello
 
 lookup: lookup.o queue.o util.o
+	$(CC) $(LFLAGS) $^ -o $@
+
+multi-lookup: multi-lookup.o queue.o util.o
 	$(CC) $(LFLAGS) $^ -o $@
 
 queueTest: queueTest.o queue.o
