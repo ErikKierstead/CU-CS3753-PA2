@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
+#include "queue.h"
+//#include "queue.c"
 
 #include "util.h"
 
@@ -24,6 +26,14 @@
 #define SBUFSIZE 1025
 #define INPUTFS "%1024s"
 #define NUM_THREADS 5
+#define QUE_SIZE 500
+#define MYSTACKSIZE 40960
+
+//Global Variables:
+queue q;
+pthread_mutex_t writeQueue;
+pthread_mutex_t  readQueue;
+pthread_mutex_t  decrement;
 
 void* ReadFile(void* fileName){
     
@@ -51,18 +61,32 @@ void* ReadFile(void* fileName){
     while(fscanf(inputfp, INPUTFS, hostname) > 0){
 
     // Lookup hostname and get IP string 
-    if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
-        == UTIL_FAILURE){
-        fprintf(stderr, "dnslookup error: %s\n", hostname);
-        strncpy(firstipstr, "", sizeof(firstipstr));
-        }
+    //if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
+    //    == UTIL_FAILURE){
+    //    fprintf(stderr, "dnslookup error: %s\n", hostname);
+    //    strncpy(firstipstr, "", sizeof(firstipstr));
+    //    }
 
         printf("%s: %s\n", hostname, firstipstr);
 
+        pthread_mutex_lock(&writeQueue);
+        
+        while(queue_is_full(&q))
+        {
+            usleep((rand()%100)*10000+1000);
+        }
+            
+        queue_push(&q, (void*)hostname);
+        //int queue_push(queue* q, void* new_payload)
+        //pthread_mutex_lock(&writeQueue);
+       
+        pthread_mutex_unlock(&writeQueue);
         // Write to Output File
         //fprintf(outputfp, "%s,%s\n", hostname, firstipstr);
     }
 
+
+//pthread_mutex_t writeQueue;
     //usleep(1000000000);
 
     // Close Input File
@@ -70,6 +94,67 @@ void* ReadFile(void* fileName){
    
      return NULL;
 }
+
+void* WriteFile(void* fileName){
+    
+    printf("blah2\n");
+
+    //Setup Local Vars and Handle void
+    //   long* tid = threadid;
+    long t;
+    long numprint = 3;
+    FILE* outputfp = (FILE*) fileName;
+    char errorstr[SBUFSIZE];
+    char firstipstr[INET6_ADDRSTRLEN];
+ 
+    //Open Output File
+    outputfp = fopen(fileName, "w");
+
+    if(!outputfp){
+        sprintf(errorstr, "Error Opening Output File: %s", (char*)fileName);
+        perror(errorstr);
+        printf("Error Opening Output File: %s", (char*)fileName);
+        //break;
+    }
+
+    /*while(fscanf(inputfp, INPUTFS, hostname) > 0){
+
+    // Lookup hostname and get IP string 
+    //if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
+    //    == UTIL_FAILURE){
+    //    fprintf(stderr, "dnslookup error: %s\n", hostname);
+    //    strncpy(firstipstr, "", sizeof(firstipstr));
+    //    }
+
+        printf("%s: %s\n", hostname, firstipstr);
+
+        pthread_mutex_lock(&writeQueue);
+        
+        while(queue_is_full(&q))
+        {
+            usleep((rand()%100)*10000+1000);
+        }
+            
+        queue_push(&q, (void*)hostname);
+        //int queue_push(queue* q, void* new_payload)
+        //pthread_mutex_lock(&writeQueue);
+       
+        pthread_mutex_unlock(&writeQueue);
+        // Write to Output File
+        //fprintf(outputfp, "%s,%s\n", hostname, firstipstr);
+    }*/
+
+
+//pthread_mutex_t writeQueue;
+    //usleep(1000000000);
+
+    // Close Input File
+    fclose(outputfp);
+   
+     return NULL;
+}
+
+
 
 int main(int argc, char* argv[]){
 
@@ -80,7 +165,8 @@ int main(int argc, char* argv[]){
     char errorstr[SBUFSIZE];
     char firstipstr[INET6_ADDRSTRLEN];
     int i;
-    
+
+
     /* Check Arguments */
     if(argc < MINARGS){
 	fprintf(stderr, "Not enough arguments: %d\n", (argc - 1));
@@ -95,8 +181,17 @@ int main(int argc, char* argv[]){
     pthread_t threads[NUM_THREADS];
     int rc;
     long t;
-    //long cpyt[NUM_THREADS];
+ 
+    //Initialize Global Queue:
+    if(queue_init(&q, QUE_SIZE) == QUEUE_FAILURE){
+        fprintf(stderr, "error: queue_init failed!\n");
+    }
 
+    //Initialize Mutex Variables:
+    pthread_mutex_init(&writeQueue, NULL);
+    pthread_mutex_init(&readQueue, NULL);
+    pthread_mutex_init(&decrement, NULL);
+    
     //long num_threads = NUM_THREADS;
     long num_threads = argc - 1;
     //long num_threads = 1;
@@ -114,13 +209,13 @@ int main(int argc, char* argv[]){
     }
 
 
-//    return EXIT_SUCCESS;
-//}
+    return EXIT_SUCCESS;
+}
 
     //--------------------------------------------------
 
     /* Open Output File */
-    outputfp = fopen(argv[(argc-1)], "w");
+    /*outputfp = fopen(argv[(argc-1)], "w");
     if(!outputfp){
 	perror("Error Opening Output File");
 	return EXIT_FAILURE;
@@ -159,4 +254,4 @@ int main(int argc, char* argv[]){
     //fclose(outputfp);
 
     return EXIT_SUCCESS;
-}
+}*/
