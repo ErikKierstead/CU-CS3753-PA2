@@ -35,18 +35,20 @@ pthread_mutex_t writeQueue;
 pthread_mutex_t  readQueue;
 pthread_mutex_t  decrement;
 
+int openRequesters = 0;
+
 void* ReadFile(void* fileName){
     
-    printf("blah\n");
+    //printf("blah\n");
 
     //Setup Local Vars and Handle void
     //   long* tid = threadid;
-    long t;
-    long numprint = 3;
+    //long t;
+    //long numprint = 3;
     FILE* inputfp = (FILE*) fileName;
     char hostname[SBUFSIZE];
     char errorstr[SBUFSIZE];
-    char firstipstr[INET6_ADDRSTRLEN];
+    //char firstipstr[INET6_ADDRSTRLEN];
  
     //Open Input File
     inputfp = fopen(fileName, "r");
@@ -67,28 +69,46 @@ void* ReadFile(void* fileName){
     //    strncpy(firstipstr, "", sizeof(firstipstr));
     //    }
 
-        printf("From File: %s\n", hostname);
+        //printf("From File: %s\n", hostname);
 
         //printf("%s: %s\n", hostname, firstipstr);
         //pthread_mutex_lock(&writeQueue);
-        
-        while(queue_is_full(&q))
-        {
-            printf("is full with hostname %s\n", hostname);
-            usleep((rand()%100)*10000+1000);
-        }
+
+        //pthread_mutex_lock(&writeQueue);
+ 
         
         pthread_mutex_lock(&writeQueue);
-        //printf("pushed\n");    
-        queue_push(&q, hostname);
+        while(queue_is_full(&q))
+        {
+            pthread_mutex_unlock(&writeQueue);
+   
+            //printf("is full with hostname %s\n", hostname);
+            usleep((rand()%100)*10000+100);
+            pthread_mutex_lock(&writeQueue);
+        }
+        
+       
+        char* hostPointer = malloc(sizeof(hostname));
+        strcpy(hostPointer, hostname);
+        //pthread_mutex_lock(&writeQueue);
+       
+       
+        printf("Pushed: %s\n", hostPointer);    
+        queue_push(&q, hostPointer);
 
         //int queue_push(queue* q, void* new_payload)
         //pthread_mutex_lock(&writeQueue);
        
+        
         pthread_mutex_unlock(&writeQueue);
+ 
         // Write to Output File
         //fprintf(outputfp, "%s,%s\n", hostname, firstipstr);
     }
+
+        pthread_mutex_lock(&decrement);
+        openRequesters = openRequesters - 1;
+        pthread_mutex_unlock(&decrement);
 
 
 //pthread_mutex_t writeQueue;
@@ -102,22 +122,31 @@ void* ReadFile(void* fileName){
 
 void* WriteFile(void* fileName){
     
-    printf("blah2\n");
+    //printf("before initialization\n");
 
     //Setup Local Vars and Handle void
     //   long* tid = threadid;
-    long t;
-    long numprint = 3;
+    //long t;
+    //long numprint = 3;
     FILE* outputfp = (FILE*) fileName;
+
+    //printf("file initialized\n");
+
     char* hostPointer;
     char hostname[SBUFSIZE];
+
+    //printf("host stuff initialized\n");
+
     //char* hostname;
     char errorstr[SBUFSIZE];
     char firstipstr[INET6_ADDRSTRLEN];
       
+    //printf("after error and IP initialization\n");
 
     //Open Output File
     outputfp = fopen(fileName, "w");
+
+    //printf("after open\n");
 
     if(!outputfp){
         sprintf(errorstr, "Error Opening Output File: %s", (char*)fileName);
@@ -126,21 +155,60 @@ void* WriteFile(void* fileName){
         //break;
     }
 
-        while(queue_is_empty(&q))
-        {
-            printf("is empty with hostname %s\n", hostname);
-            usleep((rand()%100)*10000+1000);
-        }
+    while(openRequesters > 0)
+    {
 
-        printf("popping queue..");
+  //char* hostPointer;
+  //  char hostname[SBUFSIZE];
+        //printf("openRequesters: %d", openRequesters);
 
         pthread_mutex_lock(&writeQueue);
-        hostPointer = queue_pop(&q);
-        sprintf(hostname, "%s", hostPointer);
 
-        printf("que_pop: %s", hostname);
+        if(queue_is_empty(&q))
+        {
+          pthread_mutex_unlock(&writeQueue);
+          usleep((rand()%100)*10000+1000);
+          //pthread_mutex_lock(&writeQueue);
+        }
 
-        pthread_mutex_unlock(&writeQueue);
+        else
+        {
+             //printf("Queueing Pop\n");
+
+             //pthread_mutex_lock(&writeQueue);
+             hostPointer = queue_pop(&q);
+		printf("recvd %s\n", hostPointer);
+             sprintf(hostname, "%s", (char*) hostPointer);
+
+             printf("que_pop: %s\n", hostname);
+
+             //queue_push(&q, hostname);
+             pthread_mutex_unlock(&writeQueue);
+        
+             printf("Exited Loop - openRequesters:%d\n", openRequesters);
+        }
+
+             //pthread_mutex_unlock(&writeQueue);
+
+    }
+
+   // printf("Exited Loop - openRequesters:%d\n", openRequesters);
+
+    //    while(queue_is_empty(&q))
+      //  {
+          //printf("is empty\n");
+        //  usleep((rand()%100)*10000+1000);
+       // }
+
+       // printf("popping queue..");
+
+//        pthread_mutex_lock(&writeQueue);
+  //      hostPointer = queue_pop(&q);
+    //    sprintf(hostname, "%s", hostPointer);
+
+      //  printf("que_pop: %s\n", hostname);
+
+        //pthread_mutex_unlock(&writeQueue);
 
  //       if(dnslookup(
 
@@ -176,6 +244,8 @@ void* WriteFile(void* fileName){
     //usleep(1000000000);
 
     // Close Input File
+    printf("Closing Output File\n");
+
     fclose(outputfp);
    
      return NULL;
@@ -192,7 +262,6 @@ int main(int argc, char* argv[]){
     char errorstr[SBUFSIZE];
     char firstipstr[INET6_ADDRSTRLEN];
     int i;
-
 
     /* Check Arguments */
     if(argc < MINARGS){
@@ -221,12 +290,14 @@ int main(int argc, char* argv[]){
     pthread_mutex_init(&decrement, NULL);
     
     //long num_threads = NUM_THREADS;
-    long num_threads = argc - 1;
+    long num_threads = argc - 2;
     //long num_threads = 1;
+
+    printf("num_threads: %ld\n", num_threads);
 
      // Spawn NUM_THREADS threads
     for(t=0;t<num_threads;t++){
-	printf("In main: creating thread %ld\n", t);
+	printf("In main: creating thread for first pool %ld\n", t);
 	
         //cpyt[t] = t;
 	rc = pthread_create(&(threads[t]), NULL, ReadFile, (void*)argv[t+1]); //was &(cpyt[t]));
@@ -234,36 +305,40 @@ int main(int argc, char* argv[]){
 	    printf("ERROR; return code from pthread_create() is %d\n", rc);
 	    exit(EXIT_FAILURE);
 	}
-        
+    
+
+        pthread_mutex_lock(&decrement);
+        openRequesters = openRequesters + 1;
+        pthread_mutex_unlock(&decrement);
+   
         //usleep(1000000);
         //printf("\nExited ReadFile %s\n", (char*)queue_pop(&q)); 
     }
 
      //secondPool
-     for(u=0;t<num_threads;u++){
+     for(u=0;u< num_threads;u++){
       
-          printf("In main: creating thread %ld\n", u);
+          printf("In main: creating thread for second pool %ld\n", u);
 
-        //cpyt[t] = t;
-        rd = pthread_create(&(threadsWrite[u]), NULL, WriteFile, (void*)argv[u+1]); //was &(cpyt[t]));
+        rd = pthread_create(&(threadsWrite[u]), NULL, WriteFile, (void*)argv[(argc-1)]);
+
         if (rd){
             printf("ERROR; return code from pthread_create() is %d\n", rd);
             exit(EXIT_FAILURE);
         }
+        printf("Thread %ld Complete\n", u);
      }
 
-    /* Wait for All Theads to Finish */
+    /* Wait for All Threads to Finish */
     for(t=0;t<num_threads;t++){
 	pthread_join(threads[t],NULL);
     }
 
-    /* Wait for All Theads to Finish */
-    for(t=0;t<num_threads;t++){
-	pthread_join(threadsWrite[t],NULL);
+    /* Wait for All Threads to Finish */
+    for(u=0;u<num_threads;u++){
+	pthread_join(threadsWrite[u],NULL);
     }
 
-    printf("All of the threads were completed!\n");
-    printf("All of the threads were completed!\n");    
 
     //return EXIT_SUCCESS;
 //}
