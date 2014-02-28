@@ -26,7 +26,7 @@
 #define SBUFSIZE 1025
 #define INPUTFS "%1024s"
 #define NUM_THREADS 5
-#define QUE_SIZE 500
+#define QUE_SIZE 10
 #define MYSTACKSIZE 40960
 
 //Global Variables:
@@ -67,16 +67,21 @@ void* ReadFile(void* fileName){
     //    strncpy(firstipstr, "", sizeof(firstipstr));
     //    }
 
-        printf("%s: %s\n", hostname, firstipstr);
+        printf("From File: %s\n", hostname);
 
-        pthread_mutex_lock(&writeQueue);
+        //printf("%s: %s\n", hostname, firstipstr);
+        //pthread_mutex_lock(&writeQueue);
         
         while(queue_is_full(&q))
         {
+            printf("is full with hostname %s\n", hostname);
             usleep((rand()%100)*10000+1000);
         }
-            
-        queue_push(&q, (void*)hostname);
+        
+        pthread_mutex_lock(&writeQueue);
+        //printf("pushed\n");    
+        queue_push(&q, hostname);
+
         //int queue_push(queue* q, void* new_payload)
         //pthread_mutex_lock(&writeQueue);
        
@@ -104,9 +109,13 @@ void* WriteFile(void* fileName){
     long t;
     long numprint = 3;
     FILE* outputfp = (FILE*) fileName;
+    char* hostPointer;
+    char hostname[SBUFSIZE];
+    //char* hostname;
     char errorstr[SBUFSIZE];
     char firstipstr[INET6_ADDRSTRLEN];
- 
+      
+
     //Open Output File
     outputfp = fopen(fileName, "w");
 
@@ -116,6 +125,24 @@ void* WriteFile(void* fileName){
         printf("Error Opening Output File: %s", (char*)fileName);
         //break;
     }
+
+        while(queue_is_empty(&q))
+        {
+            printf("is empty with hostname %s\n", hostname);
+            usleep((rand()%100)*10000+1000);
+        }
+
+        printf("popping queue..");
+
+        pthread_mutex_lock(&writeQueue);
+        hostPointer = queue_pop(&q);
+        sprintf(hostname, "%s", hostPointer);
+
+        printf("que_pop: %s", hostname);
+
+        pthread_mutex_unlock(&writeQueue);
+
+ //       if(dnslookup(
 
     /*while(fscanf(inputfp, INPUTFS, hostname) > 0){
 
@@ -174,13 +201,14 @@ int main(int argc, char* argv[]){
 	return EXIT_FAILURE;
     }
 
-    //fprintf("hostname[SBUFSIZE] = %s", hostname);
-
-    //------------------------------added----------------
     // Setup Local Vars
     pthread_t threads[NUM_THREADS];
     int rc;
     long t;
+
+    pthread_t threadsWrite[NUM_THREADS];
+    int rd;
+    long u;
  
     //Initialize Global Queue:
     if(queue_init(&q, QUE_SIZE) == QUEUE_FAILURE){
@@ -206,16 +234,44 @@ int main(int argc, char* argv[]){
 	    printf("ERROR; return code from pthread_create() is %d\n", rc);
 	    exit(EXIT_FAILURE);
 	}
+        
+        //usleep(1000000);
+        //printf("\nExited ReadFile %s\n", (char*)queue_pop(&q)); 
     }
 
+     //secondPool
+     for(u=0;t<num_threads;u++){
+      
+          printf("In main: creating thread %ld\n", u);
 
-    return EXIT_SUCCESS;
-}
+        //cpyt[t] = t;
+        rd = pthread_create(&(threadsWrite[u]), NULL, WriteFile, (void*)argv[u+1]); //was &(cpyt[t]));
+        if (rd){
+            printf("ERROR; return code from pthread_create() is %d\n", rd);
+            exit(EXIT_FAILURE);
+        }
+     }
+
+    /* Wait for All Theads to Finish */
+    for(t=0;t<num_threads;t++){
+	pthread_join(threads[t],NULL);
+    }
+
+    /* Wait for All Theads to Finish */
+    for(t=0;t<num_threads;t++){
+	pthread_join(threadsWrite[t],NULL);
+    }
+
+    printf("All of the threads were completed!\n");
+    printf("All of the threads were completed!\n");    
+
+    //return EXIT_SUCCESS;
+//}
 
     //--------------------------------------------------
 
     /* Open Output File */
-    /*outputfp = fopen(argv[(argc-1)], "w");
+    outputfp = fopen(argv[(argc-1)], "w");
     if(!outputfp){
 	perror("Error Opening Output File");
 	return EXIT_FAILURE;
@@ -254,4 +310,4 @@ int main(int argc, char* argv[]){
     //fclose(outputfp);
 
     return EXIT_SUCCESS;
-}*/
+}
