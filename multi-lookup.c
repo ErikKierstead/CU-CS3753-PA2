@@ -156,7 +156,6 @@ void* ReadFile(void* fileName){
         printf("Error Opening Input File: %s", (char*)fileName);
     }
 
-
     while(fscanf(inputfp, INPUTFS, hostname) > 0){
 
         //Locks Mutex, checks if queue is full,
@@ -193,7 +192,8 @@ void* ReadFile(void* fileName){
 
     // Close Input File
     fclose(inputfp);
-   
+
+
     return NULL;
 }
 
@@ -246,6 +246,7 @@ void* WriteFile(void* fileName){
              //Appends to Output File:
              fprintf(outputfp, "%s,%s\n", hostname, (char*)ipPointer);
        
+             free(hostPointer);
              free(ipPointer);
 
            //Close Output File to Relinquish Control to Other Threads:
