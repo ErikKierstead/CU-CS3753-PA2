@@ -1,13 +1,13 @@
 /*
- * File: lookup.c
- * Author: Andy Sayler
+ * File: multi-lookup.c
+ * Original Author: Andy Sayler
+ * Updated by Erik Kierstead
  * Project: CSCI 3753 Programming Assignment 2
  * Create Date: 2012/02/01
- * Modify Date: 2012/02/01
+ * Modify Date: 2014/02/28
  * Description:
- * 	This file contains the reference non-threaded
- *      solution to this assignment.
- *  
+ * 	Multithreaded solution to the DNS
+ *      requester / resolver threads.  
  */
 
 #include <stdlib.h>
@@ -18,8 +18,6 @@
 #include <unistd.h>
 #include "queue.h"
 #include "multi-lookup.h"
-
-//#include "queue.c"
 
 #include "util.h"
 
