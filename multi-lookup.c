@@ -175,6 +175,8 @@ void* ReadFile(void* fileName){
        
         //Push to Queue:
         queue_push(&q, hostPointer);
+        
+        free(hostPointer);
 
         pthread_mutex_unlock(&writeQueue);
     }
@@ -238,6 +240,8 @@ void* WriteFile(void* fileName){
     
              //Appends to Output File:
              fprintf(outputfp, "%s,%s\n", hostname, (char*)ipPointer);
+       
+             free(ipPointer);
 
              //Close Output File to Relinquish Control to Other Threads:
              fclose(outputfp);
