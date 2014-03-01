@@ -133,6 +133,11 @@ int main(int argc, char* argv[]){
 	pthread_join(threadsWrite[u],NULL);
     }
 
+    queue_cleanup(&q);
+    pthread_mutex_destroy(&writeQueue);
+    pthread_mutex_destroy(&outputQueue);
+    pthread_mutex_destroy(&decrement);
+
     return EXIT_SUCCESS;
 }
 
