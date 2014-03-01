@@ -1,7 +1,9 @@
 /*
  * File: multi-lookup.c
- * Original Author: Andy Sayler
+ * Author for multi-lookup: Erik Kierstead
+ * Author for single-lookup: Andy Sayler
  * Updated by Erik Kierstead
+
  * Project: CSCI 3753 Programming Assignment 2
  * Create Date: 2012/02/01
  * Modify Date: 2014/02/28
@@ -31,21 +33,22 @@
 
 //Global Variables:
 queue q;
-pthread_mutex_t writeQueue;
+pthread_mutex_t  writeQueue;
 pthread_mutex_t outputQueue;
-pthread_mutex_t  decrement;
+pthread_mutex_t   decrement;
 
+//Keeps Track of How Many Requester Threads Awake:
 int openRequesters = 0;
 
 int main(int argc, char* argv[]){
 
     /* Local Vars */
-    FILE* inputfp = NULL;
+    //FILE* inputfp = NULL;
     FILE* outputfp = NULL;
-    char hostname[SBUFSIZE];
-    char errorstr[SBUFSIZE];
-    char firstipstr[INET6_ADDRSTRLEN];
-    int i;
+    //char hostname[SBUFSIZE];
+    //char errorstr[SBUFSIZE];
+    //char firstipstr[INET6_ADDRSTRLEN];
+    //int i;
 
     /* Check Arguments */
     if(argc < MINARGS){
@@ -75,44 +78,49 @@ int main(int argc, char* argv[]){
     
     //long num_threads = NUM_THREADS;
     long num_threads = argc - 2;
-    //long num_threads = 1;
-
-    printf("num_threads: %ld\n", num_threads);
 
     //Ensures the Output File is Created Blank:
-   // FILE* newFile = (FILE*)(void*)argv[(argc-1)];
     outputfp = fopen(argv[(argc-1)], "w");
+
+     if(!outputfp){
+                 perror("Error Opening Output File");
+                 return EXIT_FAILURE;
+             }
+
+
     fclose(outputfp);
 
-    // Spawn NUM_THREADS threads
+    // Spawn Requester Threads (one thread per file):
     for(t=0;t<num_threads;t++){
 	printf("In main: creating thread for first pool %ld\n", t);
 	
-        //cpyt[t] = t;
-	rc = pthread_create(&(threads[t]), NULL, ReadFile, (void*)argv[t+1]); //was &(cpyt[t]));
+        //Requester Threads Call Function ReadFile with Filename as Argument (argv[t+1]):
+	rc = pthread_create(&(threads[t]), NULL, ReadFile, (void*)argv[t+1]);
+
 	if (rc){
 	    printf("ERROR; return code from pthread_create() is %d\n", rc);
 	    exit(EXIT_FAILURE);
 	}
 
+        //Locks Requester Thread Count and Increments:
         pthread_mutex_lock(&decrement);
         openRequesters = openRequesters + 1;
         pthread_mutex_unlock(&decrement);
    
     }
 
-     //secondPool
+     //Spawns Resolver Threads (one thread per file):
      for(u=0;u< num_threads;u++){
       
-          printf("In main: creating thread for second pool %ld\n", u);
+        printf("In main: creating thread for second pool %ld\n", u);
 
+        //Resolver Threads Call Function WRiteFile with Filename as Last Argument in argv:
         rd = pthread_create(&(threadsWrite[u]), NULL, WriteFile, (void*)argv[(argc-1)]);
 
         if (rd){
             printf("ERROR; return code from pthread_create() is %d\n", rd);
             exit(EXIT_FAILURE);
         }
-        printf("Thread %ld Complete\n", u);
      }
 
     /* Wait for All Threads to Finish */
@@ -141,41 +149,45 @@ void* ReadFile(void* fileName){
         sprintf(errorstr, "Error Opening Input File: %s", (char*)fileName);
         perror(errorstr);
         printf("Error Opening Input File: %s", (char*)fileName);
-        //break;
     }
+
 
     while(fscanf(inputfp, INPUTFS, hostname) > 0){
 
-        
+        //Locks Mutex, checks if queue is full,
+        //if full, unlock and sleep
+        //if room, then make a new pointer, string copy,
+        //    push pointer to queque, and unlocks:
+
         pthread_mutex_lock(&writeQueue);
+        
         while(queue_is_full(&q))
         {
             pthread_mutex_unlock(&writeQueue);
    
-            //printf("is full with hostname %s\n", hostname);
             usleep((rand()%100)*10000+100);
             pthread_mutex_lock(&writeQueue);
         }
         
-       
+        //Malloc to New Pointer and String Copy:
         char* hostPointer = malloc(sizeof(hostname));
         strcpy(hostPointer, hostname);
        
-        printf("Pushed: %s\n", hostPointer);    
+        //Push to Queue:
         queue_push(&q, hostPointer);
 
         pthread_mutex_unlock(&writeQueue);
- 
     }
 
-        pthread_mutex_lock(&decrement);
-        openRequesters = openRequesters - 1;
-        pthread_mutex_unlock(&decrement);
+    //Decrements How Many Requesters Available:    
+    pthread_mutex_lock(&decrement);
+    openRequesters = openRequesters - 1;
+    pthread_mutex_unlock(&decrement);
 
     // Close Input File
     fclose(inputfp);
    
-     return NULL;
+    return NULL;
 }
 
 void* WriteFile(void* fileName){
@@ -184,55 +196,50 @@ void* WriteFile(void* fileName){
 
     char* hostPointer;
     char hostname[SBUFSIZE];
-
-    char errorstr[SBUFSIZE];
     char firstipstr[INET6_ADDRSTRLEN];
       
 
-
+    //While there Exists Open Requesters OR Queue Not Empty (handles last cases):
     while(openRequesters > 0 || !queue_is_empty(&q))
     {
 
-        
-
         pthread_mutex_lock(&writeQueue);
 
+        //If Queue is Empty, Wait:
         if(queue_is_empty(&q))
         {
           pthread_mutex_unlock(&writeQueue);
-          usleep((rand()%100)*10000+10000);
+          usleep((rand()%100)*1000+10000);
         }
 
         else
         {
-
+             
              pthread_mutex_lock(&outputQueue);
+             
+             //Pops Pointer and String Copies to Var:
              hostPointer = queue_pop(&q);
              sprintf(hostname, "%s", (char*) hostPointer);
 
-             //pthread_mutex_lock(&outputQueue);
-             
+             //Performs DNS Lookup for Receive IP from Hostname:
              if(dnslookup(hostname, firstipstr, sizeof(firstipstr))
                  == UTIL_FAILURE){
                      fprintf(stderr, "dnslookup error: %s\n", hostname);
                      strncpy(firstipstr, "", sizeof(firstipstr));
                      }
 
-             printf("Popped: %s\n", hostname);
 
+             //Malloc a New POinter and String Copies:
              char* ipPointer = malloc(sizeof(firstipstr));
              strcpy(ipPointer, firstipstr);
 
              /* Open Output File */
              outputfp = fopen(fileName, "a");
     
-             if(!outputfp){
-                 perror("Error Opening Output File");
-                 return EXIT_FAILURE;
-             }
-
+             //Appends to Output File:
              fprintf(outputfp, "%s,%s\n", hostname, (char*)ipPointer);
 
+             //Close Output File to Relinquish Control to Other Threads:
              fclose(outputfp);
 
              pthread_mutex_unlock(&writeQueue);
