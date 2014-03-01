@@ -43,12 +43,12 @@ int openRequesters = 0;
 int main(int argc, char* argv[]){
 
     /* Local Vars */
-    //FILE* inputfp = NULL;
+    FILE* inputfp = NULL;
     FILE* outputfp = NULL;
     //char hostname[SBUFSIZE];
-    //char errorstr[SBUFSIZE];
+    char errorstr[SBUFSIZE];
     //char firstipstr[INET6_ADDRSTRLEN];
-    //int i;
+    int i;
 
     /* Check Arguments */
     if(argc < MINARGS){
@@ -78,6 +78,20 @@ int main(int argc, char* argv[]){
     
     //long num_threads = NUM_THREADS;
     long num_threads = argc - 2;
+
+    for(i = 1; i<(argc-1); i++){
+        
+        inputfp = fopen(argv[i], "r");
+  
+        if(!inputfp){
+            sprintf(errorstr, "Error Opening Input File: %s", argv[i]);
+            perror(errorstr);
+            return EXIT_FAILURE;
+
+        }
+
+    }
+
 
     //Ensures the Output File is Created Blank:
     outputfp = fopen(argv[(argc-1)], "w");
