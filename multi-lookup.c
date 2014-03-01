@@ -172,7 +172,7 @@ void* ReadFile(void* fileName){
         //Malloc to New Pointer and String Copy:
         char* hostPointer = malloc(sizeof(hostname));
         strcpy(hostPointer, hostname);
-       
+ 
         //Push to Queue:
         queue_push(&q, hostPointer);
         
@@ -243,7 +243,9 @@ void* WriteFile(void* fileName){
        
              free(ipPointer);
 
-             //Close Output File to Relinquish Control to Other Threads:
+             free(ipPointer);
+  
+           //Close Output File to Relinquish Control to Other Threads:
              fclose(outputfp);
 
              pthread_mutex_unlock(&writeQueue);
